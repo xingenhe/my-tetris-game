@@ -143,11 +143,10 @@ function getDisplayBoard(board, piece, position, showGhost = true) {
   return display;
 }
 
-function SmallPreview({ piece, cellSize = 14 }) {
-  const rows = piece?.matrix?.length || 2;
-  const cols = piece?.matrix?.[0]?.length || 2;
-  const gridRows = Math.max(rows, 4);
-  const gridCols = Math.max(cols, 4);
+function Preview({ piece }) {
+  const size = 16;
+  const rows = Math.max(piece?.matrix?.length || 2, 4);
+  const cols = Math.max(piece?.matrix?.[0]?.length || 2, 4);
 
   return (
     <div
@@ -160,21 +159,20 @@ function SmallPreview({ piece, cellSize = 14 }) {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: `repeat(${gridCols}, ${cellSize}px)`,
+          gridTemplateColumns: `repeat(${cols}, ${size}px)`,
           gap: 4,
           justifyContent: "center",
-          minHeight: gridRows * (cellSize + 4),
         }}
       >
-        {Array.from({ length: gridRows }).flatMap((_, y) =>
-          Array.from({ length: gridCols }).map((__, x) => {
+        {Array.from({ length: rows }).flatMap((_, y) =>
+          Array.from({ length: cols }).map((__, x) => {
             const filled = piece?.matrix?.[y]?.[x];
             return (
               <div
                 key={`${y}-${x}`}
                 style={{
-                  width: cellSize,
-                  height: cellSize,
+                  width: size,
+                  height: size,
                   borderRadius: 4,
                   background: filled ? piece.color : "#f1ede5",
                   border: `1px solid ${THEME.grid}`,
@@ -188,7 +186,7 @@ function SmallPreview({ piece, cellSize = 14 }) {
   );
 }
 
-function ActionButton({ label, onTap, onHoldStart, onHoldEnd, wide = false, secondary = false }) {
+function ActionButton({ label, onTap, onHoldStart, onHoldEnd, secondary = false, wide = false }) {
   const touchStartedRef = useRef(false);
 
   return (
@@ -202,7 +200,7 @@ function ActionButton({ label, onTap, onHoldStart, onHoldEnd, wide = false, seco
         color: THEME.text,
         border: `1px solid ${secondary ? "#ddd5c8" : "#cadac5"}`,
         boxShadow: "0 6px 16px rgba(80, 74, 60, 0.06)",
-        minHeight: 62,
+        minHeight: 60,
         touchAction: "manipulation",
       }}
       onTouchStart={(e) => {
@@ -216,20 +214,14 @@ function ActionButton({ label, onTap, onHoldStart, onHoldEnd, wide = false, seco
       }}
       onTouchEnd={(e) => {
         e.preventDefault();
-        if (onHoldEnd) onHoldEnd();
+        onHoldEnd?.();
         setTimeout(() => {
           touchStartedRef.current = false;
         }, 0);
       }}
-      onMouseDown={() => {
-        if (onHoldStart) onHoldStart();
-      }}
-      onMouseUp={() => {
-        if (onHoldEnd) onHoldEnd();
-      }}
-      onMouseLeave={() => {
-        if (onHoldEnd) onHoldEnd();
-      }}
+      onMouseDown={() => onHoldStart?.()}
+      onMouseUp={() => onHoldEnd?.()}
+      onMouseLeave={() => onHoldEnd?.()}
       onClick={(e) => {
         if (touchStartedRef.current) return;
         e.preventDefault();
@@ -265,19 +257,18 @@ export default function App() {
 
   const [cellSize, setCellSize] = useState(24);
 
+  const wrapRef = useRef(null);
   const holdRef = useRef(null);
   const dropTimerRef = useRef(null);
 
   useEffect(() => {
     const updateCellSize = () => {
-      const width = window.innerWidth;
-      if (width <= 360) {
-        setCellSize(22);
-      } else if (width <= 430) {
-        setCellSize(24);
-      } else {
-        setCellSize(26);
-      }
+      if (!wrapRef.current) return;
+      const containerWidth = wrapRef.current.clientWidth;
+      const horizontalPadding = 32;
+      const available = Math.max(220, containerWidth - horizontalPadding);
+      const nextSize = Math.floor(available / COLS);
+      setCellSize(Math.max(18, Math.min(28, nextSize)));
     };
 
     updateCellSize();
@@ -341,7 +332,7 @@ export default function App() {
       if (!isValidMove(updatedBoard, incoming, startPos)) {
         setGameOver(true);
         setStarted(false);
-        announce("游戏结束");
+        announce("本局结束");
       }
     },
     [announce, nextPiece]
@@ -352,9 +343,7 @@ export default function App() {
       const merged = mergePiece(board, currentPiece, lockPosition);
       const { board: cleaned, lines: cleared } = clearLines(merged);
 
-      const gained =
-        cleared === 0 ? 0 : [0, 100, 250, 450, 700][cleared] || cleared * 200;
-
+      const gained = cleared === 0 ? 0 : [0, 100, 250, 450, 700][cleared] || cleared * 200;
       const updatedScore = score + gained;
       const updatedLines = lines + cleared;
 
@@ -438,15 +427,12 @@ export default function App() {
     dropTimerRef.current = setInterval(() => {
       setPosition((prev) => {
         const nextPos = { ...prev, y: prev.y + 1 };
-
         if (isValidMove(board, currentPiece, nextPos)) {
           return nextPos;
         }
-
         setTimeout(() => {
           lockPiece(prev);
         }, 0);
-
         return prev;
       });
     }, speed);
@@ -491,93 +477,108 @@ export default function App() {
   }, [board, currentPiece, position]);
 
   const boardWidth = COLS * cellSize;
-  const previewCellSize = cellSize <= 22 ? 12 : 14;
 
   return (
     <div
-      className="min-h-screen w-full px-2 py-3 sm:px-4"
-      style={{ background: THEME.bg, color: THEME.text }}
+      ref={wrapRef}
+      className="min-h-screen w-full px-3 py-4"
+      style={{
+        background: THEME.bg,
+        color: THEME.text,
+        overflowX: "hidden",
+      }}
     >
       <div className="mx-auto w-full max-w-[420px]">
         <div
-          className="rounded-[24px] p-3 sm:p-4"
+          className="rounded-[24px] p-3"
           style={{
             background: "linear-gradient(180deg, #fffdf9 0%, #f9f5ee 100%)",
             border: `1px solid ${THEME.border}`,
             boxShadow: THEME.shadow,
           }}
         >
-          <div className="mb-3 flex items-start justify-between gap-2">
-            <div>
-              <h1 className="text-xl font-bold">护眼俄罗斯方块</h1>
-              <p className="mt-1 text-sm" style={{ color: THEME.subtext }}>
-                简洁、轻松、手机端友好
-              </p>
-            </div>
-            <div
-              className="rounded-2xl px-3 py-2 text-sm font-semibold"
-              style={{ background: THEME.panel, border: `1px solid ${THEME.border}` }}
-            >
-              最高分 {highScore}
-            </div>
+          <div className="mb-3 text-center">
+            <h1 className="text-2xl font-bold">护眼俄罗斯方块</h1>
+            <p className="mt-1 text-sm" style={{ color: THEME.subtext }}>
+              简洁、轻松、手机端友好
+            </p>
           </div>
 
-          <div className="mb-3 grid grid-cols-[1fr_96px] gap-2">
+          <div className="mb-3 grid grid-cols-2 gap-2">
             <div
-              className="overflow-hidden rounded-[20px] p-2"
+              className="rounded-2xl p-3 text-center"
               style={{ background: THEME.panel, border: `1px solid ${THEME.border}` }}
             >
-              <div
-                className="mx-auto grid"
-                style={{
-                  width: boardWidth,
-                  maxWidth: "100%",
-                  gridTemplateColumns: `repeat(${COLS}, ${cellSize}px)`,
-                  background: "#f2eee6",
-                  borderRadius: 14,
-                  overflow: "hidden",
-                  border: `1px solid ${THEME.grid}`,
-                }}
-              >
-                {displayBoard.flatMap((row, y) =>
-                  row.map((cell, x) => (
-                    <div
-                      key={`${y}-${x}`}
-                      style={{
-                        width: cellSize,
-                        height: cellSize,
-                        background: cell || "#fbf8f1",
-                        borderRight: x === COLS - 1 ? "none" : `1px solid ${THEME.grid}`,
-                        borderBottom: y === ROWS - 1 ? "none" : `1px solid ${THEME.grid}`,
-                        boxSizing: "border-box",
-                      }}
-                    />
-                  ))
-                )}
+              <div className="text-sm font-semibold" style={{ color: THEME.subtext }}>
+                分数
               </div>
+              <div className="mt-1 text-2xl font-bold">{score}</div>
             </div>
-
-            <div className="flex flex-col gap-2">
-              <SmallPreview piece={nextPiece} cellSize={previewCellSize} />
-              <div
-                className="rounded-2xl p-3 text-sm"
-                style={{ background: THEME.panel, border: `1px solid ${THEME.border}` }}
-              >
-                <div className="font-semibold" style={{ color: THEME.subtext }}>
-                  分数
-                </div>
-                <div className="mt-1 text-2xl font-bold">{score}</div>
-
-                <div className="mt-3 font-semibold" style={{ color: THEME.subtext }}>
-                  消行
-                </div>
-                <div className="mt-1 text-2xl font-bold">{lines}</div>
+            <div
+              className="rounded-2xl p-3 text-center"
+              style={{ background: THEME.panel, border: `1px solid ${THEME.border}` }}
+            >
+              <div className="text-sm font-semibold" style={{ color: THEME.subtext }}>
+                最高分
               </div>
+              <div className="mt-1 text-2xl font-bold">{highScore}</div>
             </div>
           </div>
 
           <div
-            className="mb-3 rounded-2xl p-3 text-sm font-medium"
+            className="mb-3 rounded-[20px] p-2"
+            style={{ background: THEME.panel, border: `1px solid ${THEME.border}` }}
+          >
+            <div
+              className="mx-auto grid"
+              style={{
+                width: boardWidth,
+                maxWidth: "100%",
+                gridTemplateColumns: `repeat(${COLS}, ${cellSize}px)`,
+                background: "#f2eee6",
+                borderRadius: 14,
+                overflow: "hidden",
+                border: `1px solid ${THEME.grid}`,
+              }}
+            >
+              {displayBoard.flatMap((row, y) =>
+                row.map((cell, x) => (
+                  <div
+                    key={`${y}-${x}`}
+                    style={{
+                      width: cellSize,
+                      height: cellSize,
+                      background: cell || "#fbf8f1",
+                      borderRight: x === COLS - 1 ? "none" : `1px solid ${THEME.grid}`,
+                      borderBottom: y === ROWS - 1 ? "none" : `1px solid ${THEME.grid}`,
+                      boxSizing: "border-box",
+                    }}
+                  />
+                ))
+              )}
+            </div>
+          </div>
+
+          <div className="mb-3 grid grid-cols-2 gap-2">
+            <Preview piece={nextPiece} />
+            <div
+              className="rounded-2xl p-3"
+              style={{ background: THEME.panel, border: `1px solid ${THEME.border}` }}
+            >
+              <div className="text-sm font-semibold" style={{ color: THEME.subtext }}>
+                消行
+              </div>
+              <div className="mt-1 text-2xl font-bold">{lines}</div>
+
+              <div className="mt-3 text-sm font-semibold" style={{ color: THEME.subtext }}>
+                等级
+              </div>
+              <div className="mt-1 text-2xl font-bold">{level}</div>
+            </div>
+          </div>
+
+          <div
+            className="mb-3 rounded-2xl p-3 text-center text-sm font-medium"
             style={{ background: "#f7f1e8", border: `1px solid ${THEME.border}` }}
           >
             {gameOver ? "本局结束" : paused ? "游戏已暂停" : status}
@@ -599,7 +600,7 @@ export default function App() {
             ))}
           </div>
 
-          <div className="mb-3 grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <ActionButton
               label="左移"
               onHoldStart={() => holdRepeat(() => move(-1))}
@@ -626,14 +627,14 @@ export default function App() {
           </div>
 
           <div
-            className="rounded-2xl p-3 text-sm leading-6"
+            className="mt-3 rounded-2xl p-3 text-center text-sm leading-6"
             style={{
               background: THEME.panel,
               border: `1px solid ${THEME.border}`,
               color: THEME.subtext,
             }}
           >
-            点击移动，长按可连续左右移动。点击“直落”可直接到底。
+            点击移动，长按可连续左右移动。
           </div>
         </div>
       </div>
