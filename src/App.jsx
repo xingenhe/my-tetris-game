@@ -12,6 +12,8 @@ const THEME = {
   text: "#4a4a4a",
   subtext: "#7b766d",
   shadow: "0 10px 30px rgba(84, 74, 60, 0.08)",
+  primary: "#e8f0e6",
+  secondary: "#f3efe7",
 };
 
 const PIECES = [
@@ -42,11 +44,13 @@ function rotateMatrix(matrix) {
   const rows = matrix.length;
   const cols = matrix[0].length;
   const rotated = Array.from({ length: cols }, () => Array(rows).fill(0));
+
   for (let y = 0; y < rows; y++) {
     for (let x = 0; x < cols; x++) {
       rotated[x][rows - 1 - y] = matrix[y][x];
     }
   }
+
   return rotated;
 }
 
@@ -70,8 +74,10 @@ function isValidMove(board, piece, position) {
   for (let y = 0; y < piece.matrix.length; y++) {
     for (let x = 0; x < piece.matrix[y].length; x++) {
       if (!piece.matrix[y][x]) continue;
+
       const nx = position.x + x;
       const ny = position.y + y;
+
       if (nx < 0 || nx >= COLS || ny >= ROWS) return false;
       if (ny >= 0 && board[ny][nx] !== EMPTY) return false;
     }
@@ -81,14 +87,18 @@ function isValidMove(board, piece, position) {
 
 function mergePiece(board, piece, position) {
   const next = board.map((row) => [...row]);
+
   for (let y = 0; y < piece.matrix.length; y++) {
     for (let x = 0; x < piece.matrix[y].length; x++) {
       if (!piece.matrix[y][x]) continue;
+
       const ny = position.y + y;
       const nx = position.x + x;
+
       if (ny >= 0) next[ny][nx] = piece.color;
     }
   }
+
   return next;
 }
 
@@ -96,6 +106,7 @@ function clearLines(board) {
   const kept = board.filter((row) => row.some((cell) => cell === EMPTY));
   const lines = ROWS - kept.length;
   const fresh = Array.from({ length: lines }, () => Array(COLS).fill(EMPTY));
+
   return {
     board: [...fresh, ...kept],
     lines,
@@ -118,8 +129,10 @@ function getDisplayBoard(board, piece, position, showGhost = true) {
     for (let y = 0; y < piece.matrix.length; y++) {
       for (let x = 0; x < piece.matrix[y].length; x++) {
         if (!piece.matrix[y][x]) continue;
+
         const gy = ghostY + y;
         const gx = position.x + x;
+
         if (gy >= 0 && gy < ROWS && gx >= 0 && gx < COLS && display[gy][gx] === EMPTY) {
           display[gy][gx] = `${piece.color}33`;
         }
@@ -130,8 +143,10 @@ function getDisplayBoard(board, piece, position, showGhost = true) {
   for (let y = 0; y < piece.matrix.length; y++) {
     for (let x = 0; x < piece.matrix[y].length; x++) {
       if (!piece.matrix[y][x]) continue;
+
       const py = position.y + y;
       const px = position.x + x;
+
       if (py >= 0 && py < ROWS && px >= 0 && px < COLS) {
         display[py][px] = piece.color;
       }
@@ -141,7 +156,16 @@ function getDisplayBoard(board, piece, position, showGhost = true) {
   return display;
 }
 
-function Button({ label, onTap, onHoldStart, onHoldEnd, secondary = false, wide = false }) {
+function Button({
+  label,
+  onTap,
+  onHoldStart,
+  onHoldEnd,
+  secondary = false,
+  wide = false,
+  minHeight = 54,
+  fontSize = 17,
+}) {
   const touchStartedRef = useRef(false);
 
   return (
@@ -170,13 +194,13 @@ function Button({ label, onTap, onHoldStart, onHoldEnd, secondary = false, wide 
       }}
       style={{
         width: "100%",
-        minHeight: 56,
+        minHeight,
         borderRadius: 18,
         border: `1px solid ${secondary ? "#ddd5c8" : "#cadac5"}`,
-        background: secondary ? "#f3efe7" : "#e8f0e6",
+        background: secondary ? THEME.secondary : THEME.primary,
         color: THEME.text,
-        fontSize: 18,
-        fontWeight: 600,
+        fontSize,
+        fontWeight: 700,
         boxShadow: "0 6px 16px rgba(80, 74, 60, 0.06)",
         gridColumn: wide ? "span 2" : "span 1",
       }}
@@ -193,22 +217,15 @@ export default function App() {
   const [position, setPosition] = useState(() => getStartPosition(randomPiece().matrix));
 
   const [score, setScore] = useState(0);
-  const [lines, setLines] = useState(0);
   const [level, setLevel] = useState(1);
 
-  const [status, setStatus] = useState("准备开始");
   const [gameOver, setGameOver] = useState(false);
   const [paused, setPaused] = useState(false);
   const [started, setStarted] = useState(false);
   const [mode, setMode] = useState("relax");
+  const [showModeMenu, setShowModeMenu] = useState(false);
 
-  const [highScore, setHighScore] = useState(() => {
-    if (typeof window === "undefined") return 0;
-    const saved = window.localStorage.getItem("friendly-tetris-high-score");
-    return saved ? Number(saved) : 0;
-  });
-
-  const [cellSize, setCellSize] = useState(24);
+  const [cellSize, setCellSize] = useState(22);
 
   const wrapRef = useRef(null);
   const holdRef = useRef(null);
@@ -217,10 +234,19 @@ export default function App() {
   useEffect(() => {
     const updateCellSize = () => {
       if (!wrapRef.current) return;
+
+      const viewportWidth = window.innerWidth;
       const containerWidth = wrapRef.current.clientWidth;
-      const available = Math.max(220, containerWidth - 24);
+      const available = Math.min(containerWidth - 16, viewportWidth - 28);
       const nextSize = Math.floor(available / COLS);
-      setCellSize(Math.max(18, Math.min(28, nextSize)));
+
+      if (viewportWidth <= 360) {
+        setCellSize(Math.max(16, Math.min(20, nextSize)));
+      } else if (viewportWidth <= 430) {
+        setCellSize(Math.max(18, Math.min(22, nextSize)));
+      } else {
+        setCellSize(Math.max(20, Math.min(26, nextSize)));
+      }
     };
 
     updateCellSize();
@@ -228,32 +254,20 @@ export default function App() {
     return () => window.removeEventListener("resize", updateCellSize);
   }, []);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (score > highScore) {
-      setHighScore(score);
-      window.localStorage.setItem("friendly-tetris-high-score", String(score));
-    }
-  }, [score, highScore]);
-
-  const announce = useCallback((text) => {
-    setStatus(text);
-  }, []);
-
   const resetGame = useCallback(() => {
     const first = randomPiece();
     const second = randomPiece();
+
     setBoard(createBoard());
     setCurrentPiece(first);
     setNextPiece(second);
     setPosition(getStartPosition(first.matrix));
     setScore(0);
-    setLines(0);
     setLevel(1);
-    setStatus("准备开始");
     setGameOver(false);
     setPaused(false);
     setStarted(false);
+    setShowModeMenu(false);
   }, []);
 
   useEffect(() => {
@@ -261,7 +275,7 @@ export default function App() {
   }, [mode, resetGame]);
 
   const spawnNext = useCallback(
-    (updatedBoard, updatedScore, updatedLines) => {
+    (updatedBoard, updatedScore, updatedLevelBase) => {
       const incoming = {
         ...nextPiece,
         matrix: cloneMatrix(nextPiece.matrix),
@@ -274,16 +288,14 @@ export default function App() {
       setNextPiece(freshNext);
       setPosition(startPos);
       setScore(updatedScore);
-      setLines(updatedLines);
-      setLevel(Math.max(1, Math.floor(updatedLines / 8) + 1));
+      setLevel(updatedLevelBase);
 
       if (!isValidMove(updatedBoard, incoming, startPos)) {
         setGameOver(true);
         setStarted(false);
-        announce("本局结束");
       }
     },
-    [announce, nextPiece]
+    [nextPiece]
   );
 
   const lockPiece = useCallback(
@@ -291,37 +303,34 @@ export default function App() {
       const merged = mergePiece(board, currentPiece, lockPosition);
       const { board: cleaned, lines: cleared } = clearLines(merged);
       const gained = cleared === 0 ? 0 : [0, 100, 250, 450, 700][cleared] || cleared * 200;
+      const updatedScore = score + gained;
+      const updatedLevel = Math.max(1, level + (cleared > 0 ? 0.125 : 0));
 
-      if (cleared === 1) announce("消除 1 行");
-      else if (cleared === 2) announce("连续消除 2 行");
-      else if (cleared >= 3) announce(`一次消除 ${cleared} 行`);
-      else announce("继续");
-
-      spawnNext(cleaned, score + gained, lines + cleared);
+      spawnNext(cleaned, updatedScore, updatedLevel);
     },
-    [announce, board, currentPiece, lines, position, score, spawnNext]
+    [board, currentPiece, level, position, score, spawnNext]
   );
 
   const move = useCallback(
     (dx) => {
       if (!started || paused || gameOver) return;
+
       const nextPos = { ...position, x: position.x + dx };
-      if (isValidMove(board, currentPiece, nextPos)) setPosition(nextPos);
+      if (isValidMove(board, currentPiece, nextPos)) {
+        setPosition(nextPos);
+      }
     },
     [board, currentPiece, gameOver, paused, position, started]
   );
 
-  const softDrop = useCallback(() => {
-    if (!started || paused || gameOver) return;
-    const nextPos = { ...position, y: position.y + 1 };
-    if (isValidMove(board, currentPiece, nextPos)) setPosition(nextPos);
-    else lockPiece(position);
-  }, [board, currentPiece, gameOver, lockPiece, paused, position, started]);
-
   const hardDrop = useCallback(() => {
     if (!started || paused || gameOver) return;
+
     let y = position.y;
-    while (isValidMove(board, currentPiece, { x: position.x, y: y + 1 })) y += 1;
+    while (isValidMove(board, currentPiece, { x: position.x, y: y + 1 })) {
+      y += 1;
+    }
+
     const finalPosition = { ...position, y };
     setPosition(finalPosition);
     lockPiece(finalPosition);
@@ -329,11 +338,14 @@ export default function App() {
 
   const rotate = useCallback(() => {
     if (!started || paused || gameOver) return;
+
     const rotated = rotateMatrix(currentPiece.matrix);
     const candidates = [0, -1, 1, -2, 2];
+
     for (const offset of candidates) {
       const testPos = { x: position.x + offset, y: position.y };
       const testPiece = { ...currentPiece, matrix: rotated };
+
       if (isValidMove(board, testPiece, testPos)) {
         setCurrentPiece(testPiece);
         setPosition(testPos);
@@ -342,22 +354,47 @@ export default function App() {
     }
   }, [board, currentPiece, gameOver, paused, position, started]);
 
-  const startGame = useCallback(() => {
-    setStarted(true);
-    setPaused(false);
-    announce("开始游戏");
-  }, [announce]);
+  const mainAction = useCallback(() => {
+    if (gameOver) {
+      resetGame();
+      return;
+    }
+
+    if (!started) {
+      setStarted(true);
+      setPaused(false);
+      return;
+    }
+
+    setPaused((prev) => !prev);
+  }, [gameOver, resetGame, started]);
+
+  const mainActionLabel = gameOver
+    ? "重新开始"
+    : !started
+    ? "开始游戏"
+    : paused
+    ? "继续游戏"
+    : "暂停游戏";
 
   useEffect(() => {
     if (!started || paused || gameOver) return;
+
     const config = MODE_CONFIG[mode];
     let speed = config.speed;
-    if (config.autoAccelerate) speed = Math.max(220, config.speed - (level - 1) * 40);
+
+    if (config.autoAccelerate) {
+      speed = Math.max(220, config.speed - (Math.floor(level) - 1) * 35);
+    }
 
     dropTimerRef.current = setInterval(() => {
       setPosition((prev) => {
         const nextPos = { ...prev, y: prev.y + 1 };
-        if (isValidMove(board, currentPiece, nextPos)) return nextPos;
+
+        if (isValidMove(board, currentPiece, nextPos)) {
+          return nextPos;
+        }
+
         setTimeout(() => lockPiece(prev), 0);
         return prev;
       });
@@ -368,7 +405,7 @@ export default function App() {
 
   const holdRepeat = useCallback((action) => {
     action();
-    holdRef.current = setInterval(action, 140);
+    holdRef.current = setInterval(action, 120);
   }, []);
 
   const clearHold = useCallback(() => {
@@ -385,6 +422,7 @@ export default function App() {
   }, [board, currentPiece, position]);
 
   const boardWidth = COLS * cellSize;
+  const boardHeight = ROWS * cellSize;
 
   return (
     <div
@@ -392,7 +430,7 @@ export default function App() {
       style={{
         minHeight: "100vh",
         width: "100%",
-        padding: 12,
+        padding: 10,
         background: THEME.bg,
         color: THEME.text,
         overflowX: "hidden",
@@ -401,41 +439,111 @@ export default function App() {
       <div
         style={{
           width: "100%",
-          maxWidth: 420,
+          maxWidth: 430,
           margin: "0 auto",
           background: "linear-gradient(180deg, #fffdf9 0%, #f9f5ee 100%)",
           border: `1px solid ${THEME.border}`,
-          borderRadius: 24,
+          borderRadius: 22,
           boxShadow: THEME.shadow,
-          padding: 12,
+          padding: 10,
         }}
       >
-        <div style={{ textAlign: "center", marginBottom: 12 }}>
-          <div style={{ fontSize: 28, fontWeight: 700 }}>护眼俄罗斯方块</div>
-          <div style={{ fontSize: 14, color: THEME.subtext, marginTop: 4 }}>简洁、轻松、手机端友好</div>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr auto",
+            gap: 8,
+            alignItems: "stretch",
+            marginBottom: 8,
+          }}
+        >
+          <div
+            style={{
+              background: THEME.panel,
+              border: `1px solid ${THEME.border}`,
+              borderRadius: 16,
+              padding: "10px 12px",
+              minHeight: 68,
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "center",
+            }}
+          >
+            <div style={{ fontSize: 13, fontWeight: 600, color: THEME.subtext }}>分数</div>
+            <div style={{ fontSize: 28, fontWeight: 700, marginTop: 2 }}>{score}</div>
+          </div>
+
+          <div
+            style={{
+              background: THEME.panel,
+              border: `1px solid ${THEME.border}`,
+              borderRadius: 16,
+              padding: 10,
+              minWidth: 88,
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "center",
+            }}
+          >
+            <div
+              style={{
+                fontSize: 13,
+                fontWeight: 600,
+                color: THEME.subtext,
+                textAlign: "center",
+              }}
+            >
+              下一块
+            </div>
+            <div
+              style={{
+                marginTop: 6,
+                display: "grid",
+                gridTemplateColumns: "repeat(4, 14px)",
+                gap: 3,
+                justifyContent: "center",
+              }}
+            >
+              {Array.from({ length: 4 }).flatMap((_, y) =>
+                Array.from({ length: 4 }).map((__, x) => {
+                  const filled = nextPiece?.matrix?.[y]?.[x];
+                  return (
+                    <div
+                      key={`${y}-${x}`}
+                      style={{
+                        width: 14,
+                        height: 14,
+                        borderRadius: 3,
+                        background: filled ? nextPiece.color : "#f1ede5",
+                        border: `1px solid ${THEME.grid}`,
+                      }}
+                    />
+                  );
+                })
+              )}
+            </div>
+          </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
-          <div style={{ background: THEME.panel, border: `1px solid ${THEME.border}`, borderRadius: 16, padding: 12, textAlign: "center" }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: THEME.subtext }}>分数</div>
-            <div style={{ fontSize: 28, fontWeight: 700, marginTop: 4 }}>{score}</div>
-          </div>
-          <div style={{ background: THEME.panel, border: `1px solid ${THEME.border}`, borderRadius: 16, padding: 12, textAlign: "center" }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: THEME.subtext }}>最高分</div>
-            <div style={{ fontSize: 28, fontWeight: 700, marginTop: 4 }}>{highScore}</div>
-          </div>
-        </div>
-
-        <div style={{ background: THEME.panel, border: `1px solid ${THEME.border}`, borderRadius: 20, padding: 8, marginBottom: 12 }}>
+        <div
+          style={{
+            background: THEME.panel,
+            border: `1px solid ${THEME.border}`,
+            borderRadius: 18,
+            padding: 6,
+            marginBottom: 8,
+          }}
+        >
           <div
             style={{
               width: boardWidth,
+              height: boardHeight,
               maxWidth: "100%",
               margin: "0 auto",
               display: "grid",
               gridTemplateColumns: `repeat(${COLS}, ${cellSize}px)`,
               background: "#f2eee6",
-              borderRadius: 14,
+              borderRadius: 12,
               overflow: "hidden",
               border: `1px solid ${THEME.grid}`,
             }}
@@ -457,73 +565,92 @@ export default function App() {
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
-          <div style={{ background: THEME.panel, border: `1px solid ${THEME.border}`, borderRadius: 16, padding: 12, textAlign: "center" }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: THEME.subtext }}>下一块</div>
-            <div style={{ marginTop: 8, display: "grid", gridTemplateColumns: "repeat(4, 16px)", gap: 4, justifyContent: "center" }}>
-              {Array.from({ length: 4 }).flatMap((_, y) =>
-                Array.from({ length: 4 }).map((__, x) => {
-                  const filled = nextPiece?.matrix?.[y]?.[x];
-                  return (
-                    <div
-                      key={`${y}-${x}`}
-                      style={{
-                        width: 16,
-                        height: 16,
-                        borderRadius: 4,
-                        background: filled ? nextPiece.color : "#f1ede5",
-                        border: `1px solid ${THEME.grid}`,
-                      }}
-                    />
-                  );
-                })
-              )}
-            </div>
-          </div>
+        <div style={{ marginBottom: 8 }}>
+          <button
+            type="button"
+            onClick={() => setShowModeMenu((v) => !v)}
+            style={{
+              width: "100%",
+              minHeight: 38,
+              borderRadius: 12,
+              border: `1px solid ${THEME.border}`,
+              background: THEME.panel,
+              color: THEME.text,
+              fontSize: 13,
+              fontWeight: 600,
+            }}
+          >
+            模式：{MODE_CONFIG[mode].label} {showModeMenu ? "▲" : "▼"}
+          </button>
 
-          <div style={{ background: THEME.panel, border: `1px solid ${THEME.border}`, borderRadius: 16, padding: 12, textAlign: "center" }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: THEME.subtext }}>消行 / 等级</div>
-            <div style={{ fontSize: 28, fontWeight: 700, marginTop: 8 }}>{lines}</div>
-            <div style={{ fontSize: 14, color: THEME.subtext, marginTop: 8 }}>等级 {level}</div>
-          </div>
-        </div>
-
-        <div style={{ background: "#f7f1e8", border: `1px solid ${THEME.border}`, borderRadius: 16, padding: 12, textAlign: "center", fontSize: 14, fontWeight: 600, marginBottom: 12 }}>
-          {gameOver ? "本局结束" : paused ? "游戏已暂停" : status}
-        </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 12 }}>
-          {Object.entries(MODE_CONFIG).map(([key, value]) => (
-            <button
-              key={key}
-              onClick={() => setMode(key)}
+          {showModeMenu && (
+            <div
               style={{
-                minHeight: 44,
-                borderRadius: 14,
-                border: `1px solid ${mode === key ? "#c8d7c2" : THEME.border}`,
-                background: mode === key ? "#e8f0e6" : THEME.panel,
-                fontSize: 14,
-                fontWeight: 600,
-                color: THEME.text,
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr 1fr",
+                gap: 8,
+                marginTop: 8,
               }}
             >
-              {value.label}
-            </button>
-          ))}
+              {Object.entries(MODE_CONFIG).map(([key, value]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => {
+                    setMode(key);
+                    setShowModeMenu(false);
+                  }}
+                  style={{
+                    minHeight: 38,
+                    borderRadius: 12,
+                    border: `1px solid ${mode === key ? "#c8d7c2" : THEME.border}`,
+                    background: mode === key ? THEME.primary : THEME.panel,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: THEME.text,
+                  }}
+                >
+                  {value.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <Button label="左移" onHoldStart={() => holdRepeat(() => move(-1))} onHoldEnd={clearHold} />
-          <Button label="右移" onHoldStart={() => holdRepeat(() => move(1))} onHoldEnd={clearHold} />
-          <Button label="旋转" onTap={rotate} />
-          <Button label="直落" onTap={hardDrop} secondary />
-          <Button label="慢下" onTap={softDrop} />
-          <Button label={paused ? "继续" : "暂停"} onTap={() => setPaused((v) => !v)} secondary />
-          <Button label={started ? "重新开始" : "开始游戏"} onTap={started ? resetGame : startGame} wide />
-        </div>
+        <div
+          style={{
+            position: "sticky",
+            bottom: 0,
+            background: "linear-gradient(180deg, rgba(249,245,238,0) 0%, rgba(249,245,238,0.92) 18%, rgba(249,245,238,1) 100%)",
+            paddingTop: 8,
+            marginTop: 2,
+          }}
+        >
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+            <Button
+              label="左移"
+              onHoldStart={() => holdRepeat(() => move(-1))}
+              onHoldEnd={clearHold}
+              minHeight={58}
+              fontSize={18}
+            />
+            <Button
+              label="右移"
+              onHoldStart={() => holdRepeat(() => move(1))}
+              onHoldEnd={clearHold}
+              minHeight={58}
+              fontSize={18}
+            />
+          </div>
 
-        <div style={{ marginTop: 12, background: THEME.panel, border: `1px solid ${THEME.border}`, borderRadius: 16, padding: 12, textAlign: "center", fontSize: 14, color: THEME.subtext }}>
-          点击移动，长按可连续左右移动。
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+            <Button label="旋转" onTap={rotate} minHeight={54} />
+            <Button label="直落" onTap={hardDrop} secondary minHeight={54} />
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 8 }}>
+            <Button label={mainActionLabel} onTap={mainAction} minHeight={60} fontSize={19} />
+          </div>
         </div>
       </div>
     </div>
