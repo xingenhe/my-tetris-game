@@ -70,10 +70,8 @@ function isValidMove(board, piece, position) {
   for (let y = 0; y < piece.matrix.length; y++) {
     for (let x = 0; x < piece.matrix[y].length; x++) {
       if (!piece.matrix[y][x]) continue;
-
       const nx = position.x + x;
       const ny = position.y + y;
-
       if (nx < 0 || nx >= COLS || ny >= ROWS) return false;
       if (ny >= 0 && board[ny][nx] !== EMPTY) return false;
     }
@@ -143,74 +141,17 @@ function getDisplayBoard(board, piece, position, showGhost = true) {
   return display;
 }
 
-function Preview({ piece }) {
-  const size = 16;
-  const rows = Math.max(piece?.matrix?.length || 2, 4);
-  const cols = Math.max(piece?.matrix?.[0]?.length || 2, 4);
-
-  return (
-    <div
-      className="rounded-2xl p-3"
-      style={{ background: THEME.panel, border: `1px solid ${THEME.border}` }}
-    >
-      <div className="mb-2 text-sm font-semibold" style={{ color: THEME.subtext }}>
-        下一块
-      </div>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: `repeat(${cols}, ${size}px)`,
-          gap: 4,
-          justifyContent: "center",
-        }}
-      >
-        {Array.from({ length: rows }).flatMap((_, y) =>
-          Array.from({ length: cols }).map((__, x) => {
-            const filled = piece?.matrix?.[y]?.[x];
-            return (
-              <div
-                key={`${y}-${x}`}
-                style={{
-                  width: size,
-                  height: size,
-                  borderRadius: 4,
-                  background: filled ? piece.color : "#f1ede5",
-                  border: `1px solid ${THEME.grid}`,
-                }}
-              />
-            );
-          })
-        )}
-      </div>
-    </div>
-  );
-}
-
-function ActionButton({ label, onTap, onHoldStart, onHoldEnd, secondary = false, wide = false }) {
+function Button({ label, onTap, onHoldStart, onHoldEnd, secondary = false, wide = false }) {
   const touchStartedRef = useRef(false);
 
   return (
     <button
       type="button"
-      className={`select-none rounded-3xl px-4 py-4 text-lg font-semibold active:scale-[0.98] ${
-        wide ? "col-span-2" : ""
-      }`}
-      style={{
-        background: secondary ? "#f3efe7" : "#e8f0e6",
-        color: THEME.text,
-        border: `1px solid ${secondary ? "#ddd5c8" : "#cadac5"}`,
-        boxShadow: "0 6px 16px rgba(80, 74, 60, 0.06)",
-        minHeight: 60,
-        touchAction: "manipulation",
-      }}
       onTouchStart={(e) => {
         e.preventDefault();
         touchStartedRef.current = true;
-        if (onHoldStart) {
-          onHoldStart();
-        } else {
-          onTap?.();
-        }
+        if (onHoldStart) onHoldStart();
+        else onTap?.();
       }}
       onTouchEnd={(e) => {
         e.preventDefault();
@@ -226,6 +167,18 @@ function ActionButton({ label, onTap, onHoldStart, onHoldEnd, secondary = false,
         if (touchStartedRef.current) return;
         e.preventDefault();
         if (!onHoldStart) onTap?.();
+      }}
+      style={{
+        width: "100%",
+        minHeight: 56,
+        borderRadius: 18,
+        border: `1px solid ${secondary ? "#ddd5c8" : "#cadac5"}`,
+        background: secondary ? "#f3efe7" : "#e8f0e6",
+        color: THEME.text,
+        fontSize: 18,
+        fontWeight: 600,
+        boxShadow: "0 6px 16px rgba(80, 74, 60, 0.06)",
+        gridColumn: wide ? "span 2" : "span 1",
       }}
     >
       {label}
@@ -265,8 +218,7 @@ export default function App() {
     const updateCellSize = () => {
       if (!wrapRef.current) return;
       const containerWidth = wrapRef.current.clientWidth;
-      const horizontalPadding = 32;
-      const available = Math.max(220, containerWidth - horizontalPadding);
+      const available = Math.max(220, containerWidth - 24);
       const nextSize = Math.floor(available / COLS);
       setCellSize(Math.max(18, Math.min(28, nextSize)));
     };
@@ -291,12 +243,10 @@ export default function App() {
   const resetGame = useCallback(() => {
     const first = randomPiece();
     const second = randomPiece();
-
     setBoard(createBoard());
     setCurrentPiece(first);
     setNextPiece(second);
     setPosition(getStartPosition(first.matrix));
-
     setScore(0);
     setLines(0);
     setLevel(1);
@@ -325,9 +275,7 @@ export default function App() {
       setPosition(startPos);
       setScore(updatedScore);
       setLines(updatedLines);
-
-      const nextLevel = Math.max(1, Math.floor(updatedLines / 8) + 1);
-      setLevel(nextLevel);
+      setLevel(Math.max(1, Math.floor(updatedLines / 8) + 1));
 
       if (!isValidMove(updatedBoard, incoming, startPos)) {
         setGameOver(true);
@@ -342,17 +290,14 @@ export default function App() {
     (lockPosition = position) => {
       const merged = mergePiece(board, currentPiece, lockPosition);
       const { board: cleaned, lines: cleared } = clearLines(merged);
-
       const gained = cleared === 0 ? 0 : [0, 100, 250, 450, 700][cleared] || cleared * 200;
-      const updatedScore = score + gained;
-      const updatedLines = lines + cleared;
 
       if (cleared === 1) announce("消除 1 行");
       else if (cleared === 2) announce("连续消除 2 行");
       else if (cleared >= 3) announce(`一次消除 ${cleared} 行`);
       else announce("继续");
 
-      spawnNext(cleaned, updatedScore, updatedLines);
+      spawnNext(cleaned, score + gained, lines + cleared);
     },
     [announce, board, currentPiece, lines, position, score, spawnNext]
   );
@@ -361,9 +306,7 @@ export default function App() {
     (dx) => {
       if (!started || paused || gameOver) return;
       const nextPos = { ...position, x: position.x + dx };
-      if (isValidMove(board, currentPiece, nextPos)) {
-        setPosition(nextPos);
-      }
+      if (isValidMove(board, currentPiece, nextPos)) setPosition(nextPos);
     },
     [board, currentPiece, gameOver, paused, position, started]
   );
@@ -371,21 +314,14 @@ export default function App() {
   const softDrop = useCallback(() => {
     if (!started || paused || gameOver) return;
     const nextPos = { ...position, y: position.y + 1 };
-    if (isValidMove(board, currentPiece, nextPos)) {
-      setPosition(nextPos);
-    } else {
-      lockPiece(position);
-    }
+    if (isValidMove(board, currentPiece, nextPos)) setPosition(nextPos);
+    else lockPiece(position);
   }, [board, currentPiece, gameOver, lockPiece, paused, position, started]);
 
   const hardDrop = useCallback(() => {
     if (!started || paused || gameOver) return;
-
     let y = position.y;
-    while (isValidMove(board, currentPiece, { x: position.x, y: y + 1 })) {
-      y += 1;
-    }
-
+    while (isValidMove(board, currentPiece, { x: position.x, y: y + 1 })) y += 1;
     const finalPosition = { ...position, y };
     setPosition(finalPosition);
     lockPiece(finalPosition);
@@ -393,10 +329,8 @@ export default function App() {
 
   const rotate = useCallback(() => {
     if (!started || paused || gameOver) return;
-
     const rotated = rotateMatrix(currentPiece.matrix);
     const candidates = [0, -1, 1, -2, 2];
-
     for (const offset of candidates) {
       const testPos = { x: position.x + offset, y: position.y };
       const testPiece = { ...currentPiece, matrix: rotated };
@@ -416,47 +350,21 @@ export default function App() {
 
   useEffect(() => {
     if (!started || paused || gameOver) return;
-
     const config = MODE_CONFIG[mode];
     let speed = config.speed;
-
-    if (config.autoAccelerate) {
-      speed = Math.max(220, config.speed - (level - 1) * 40);
-    }
+    if (config.autoAccelerate) speed = Math.max(220, config.speed - (level - 1) * 40);
 
     dropTimerRef.current = setInterval(() => {
       setPosition((prev) => {
         const nextPos = { ...prev, y: prev.y + 1 };
-        if (isValidMove(board, currentPiece, nextPos)) {
-          return nextPos;
-        }
-        setTimeout(() => {
-          lockPiece(prev);
-        }, 0);
+        if (isValidMove(board, currentPiece, nextPos)) return nextPos;
+        setTimeout(() => lockPiece(prev), 0);
         return prev;
       });
     }, speed);
 
     return () => clearInterval(dropTimerRef.current);
   }, [board, currentPiece, gameOver, level, lockPiece, mode, paused, started]);
-
-  useEffect(() => {
-    const onKeyDown = (e) => {
-      if (["ArrowLeft", "ArrowRight", "ArrowDown", "ArrowUp", " "].includes(e.key)) {
-        e.preventDefault();
-      }
-
-      if (e.key === "ArrowLeft") move(-1);
-      if (e.key === "ArrowRight") move(1);
-      if (e.key === "ArrowDown") softDrop();
-      if (e.key === "ArrowUp") rotate();
-      if (e.key === " ") hardDrop();
-      if (e.key.toLowerCase() === "p") setPaused((v) => !v);
-    };
-
-    window.addEventListener("keydown", onKeyDown, { passive: false });
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [hardDrop, move, rotate, softDrop]);
 
   const holdRepeat = useCallback((action) => {
     action();
@@ -481,161 +389,141 @@ export default function App() {
   return (
     <div
       ref={wrapRef}
-      className="min-h-screen w-full px-3 py-4"
       style={{
+        minHeight: "100vh",
+        width: "100%",
+        padding: 12,
         background: THEME.bg,
         color: THEME.text,
         overflowX: "hidden",
       }}
     >
-      <div className="mx-auto w-full max-w-[420px]">
-        <div
-          className="rounded-[24px] p-3"
-          style={{
-            background: "linear-gradient(180deg, #fffdf9 0%, #f9f5ee 100%)",
-            border: `1px solid ${THEME.border}`,
-            boxShadow: THEME.shadow,
-          }}
-        >
-          <div className="mb-3 text-center">
-            <h1 className="text-2xl font-bold">护眼俄罗斯方块</h1>
-            <p className="mt-1 text-sm" style={{ color: THEME.subtext }}>
-              简洁、轻松、手机端友好
-            </p>
-          </div>
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 420,
+          margin: "0 auto",
+          background: "linear-gradient(180deg, #fffdf9 0%, #f9f5ee 100%)",
+          border: `1px solid ${THEME.border}`,
+          borderRadius: 24,
+          boxShadow: THEME.shadow,
+          padding: 12,
+        }}
+      >
+        <div style={{ textAlign: "center", marginBottom: 12 }}>
+          <div style={{ fontSize: 28, fontWeight: 700 }}>护眼俄罗斯方块</div>
+          <div style={{ fontSize: 14, color: THEME.subtext, marginTop: 4 }}>简洁、轻松、手机端友好</div>
+        </div>
 
-          <div className="mb-3 grid grid-cols-2 gap-2">
-            <div
-              className="rounded-2xl p-3 text-center"
-              style={{ background: THEME.panel, border: `1px solid ${THEME.border}` }}
-            >
-              <div className="text-sm font-semibold" style={{ color: THEME.subtext }}>
-                分数
-              </div>
-              <div className="mt-1 text-2xl font-bold">{score}</div>
-            </div>
-            <div
-              className="rounded-2xl p-3 text-center"
-              style={{ background: THEME.panel, border: `1px solid ${THEME.border}` }}
-            >
-              <div className="text-sm font-semibold" style={{ color: THEME.subtext }}>
-                最高分
-              </div>
-              <div className="mt-1 text-2xl font-bold">{highScore}</div>
-            </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
+          <div style={{ background: THEME.panel, border: `1px solid ${THEME.border}`, borderRadius: 16, padding: 12, textAlign: "center" }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: THEME.subtext }}>分数</div>
+            <div style={{ fontSize: 28, fontWeight: 700, marginTop: 4 }}>{score}</div>
           </div>
+          <div style={{ background: THEME.panel, border: `1px solid ${THEME.border}`, borderRadius: 16, padding: 12, textAlign: "center" }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: THEME.subtext }}>最高分</div>
+            <div style={{ fontSize: 28, fontWeight: 700, marginTop: 4 }}>{highScore}</div>
+          </div>
+        </div>
 
+        <div style={{ background: THEME.panel, border: `1px solid ${THEME.border}`, borderRadius: 20, padding: 8, marginBottom: 12 }}>
           <div
-            className="mb-3 rounded-[20px] p-2"
-            style={{ background: THEME.panel, border: `1px solid ${THEME.border}` }}
+            style={{
+              width: boardWidth,
+              maxWidth: "100%",
+              margin: "0 auto",
+              display: "grid",
+              gridTemplateColumns: `repeat(${COLS}, ${cellSize}px)`,
+              background: "#f2eee6",
+              borderRadius: 14,
+              overflow: "hidden",
+              border: `1px solid ${THEME.grid}`,
+            }}
           >
-            <div
-              className="mx-auto grid"
-              style={{
-                width: boardWidth,
-                maxWidth: "100%",
-                gridTemplateColumns: `repeat(${COLS}, ${cellSize}px)`,
-                background: "#f2eee6",
-                borderRadius: 14,
-                overflow: "hidden",
-                border: `1px solid ${THEME.grid}`,
-              }}
-            >
-              {displayBoard.flatMap((row, y) =>
-                row.map((cell, x) => (
-                  <div
-                    key={`${y}-${x}`}
-                    style={{
-                      width: cellSize,
-                      height: cellSize,
-                      background: cell || "#fbf8f1",
-                      borderRight: x === COLS - 1 ? "none" : `1px solid ${THEME.grid}`,
-                      borderBottom: y === ROWS - 1 ? "none" : `1px solid ${THEME.grid}`,
-                      boxSizing: "border-box",
-                    }}
-                  />
-                ))
+            {displayBoard.flatMap((row, y) =>
+              row.map((cell, x) => (
+                <div
+                  key={`${y}-${x}`}
+                  style={{
+                    width: cellSize,
+                    height: cellSize,
+                    background: cell || "#fbf8f1",
+                    borderRight: x === COLS - 1 ? "none" : `1px solid ${THEME.grid}`,
+                    borderBottom: y === ROWS - 1 ? "none" : `1px solid ${THEME.grid}`,
+                  }}
+                />
+              ))
+            )}
+          </div>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
+          <div style={{ background: THEME.panel, border: `1px solid ${THEME.border}`, borderRadius: 16, padding: 12, textAlign: "center" }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: THEME.subtext }}>下一块</div>
+            <div style={{ marginTop: 8, display: "grid", gridTemplateColumns: "repeat(4, 16px)", gap: 4, justifyContent: "center" }}>
+              {Array.from({ length: 4 }).flatMap((_, y) =>
+                Array.from({ length: 4 }).map((__, x) => {
+                  const filled = nextPiece?.matrix?.[y]?.[x];
+                  return (
+                    <div
+                      key={`${y}-${x}`}
+                      style={{
+                        width: 16,
+                        height: 16,
+                        borderRadius: 4,
+                        background: filled ? nextPiece.color : "#f1ede5",
+                        border: `1px solid ${THEME.grid}`,
+                      }}
+                    />
+                  );
+                })
               )}
             </div>
           </div>
 
-          <div className="mb-3 grid grid-cols-2 gap-2">
-            <Preview piece={nextPiece} />
-            <div
-              className="rounded-2xl p-3"
-              style={{ background: THEME.panel, border: `1px solid ${THEME.border}` }}
+          <div style={{ background: THEME.panel, border: `1px solid ${THEME.border}`, borderRadius: 16, padding: 12, textAlign: "center" }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: THEME.subtext }}>消行 / 等级</div>
+            <div style={{ fontSize: 28, fontWeight: 700, marginTop: 8 }}>{lines}</div>
+            <div style={{ fontSize: 14, color: THEME.subtext, marginTop: 8 }}>等级 {level}</div>
+          </div>
+        </div>
+
+        <div style={{ background: "#f7f1e8", border: `1px solid ${THEME.border}`, borderRadius: 16, padding: 12, textAlign: "center", fontSize: 14, fontWeight: 600, marginBottom: 12 }}>
+          {gameOver ? "本局结束" : paused ? "游戏已暂停" : status}
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 12 }}>
+          {Object.entries(MODE_CONFIG).map(([key, value]) => (
+            <button
+              key={key}
+              onClick={() => setMode(key)}
+              style={{
+                minHeight: 44,
+                borderRadius: 14,
+                border: `1px solid ${mode === key ? "#c8d7c2" : THEME.border}`,
+                background: mode === key ? "#e8f0e6" : THEME.panel,
+                fontSize: 14,
+                fontWeight: 600,
+                color: THEME.text,
+              }}
             >
-              <div className="text-sm font-semibold" style={{ color: THEME.subtext }}>
-                消行
-              </div>
-              <div className="mt-1 text-2xl font-bold">{lines}</div>
+              {value.label}
+            </button>
+          ))}
+        </div>
 
-              <div className="mt-3 text-sm font-semibold" style={{ color: THEME.subtext }}>
-                等级
-              </div>
-              <div className="mt-1 text-2xl font-bold">{level}</div>
-            </div>
-          </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          <Button label="左移" onHoldStart={() => holdRepeat(() => move(-1))} onHoldEnd={clearHold} />
+          <Button label="右移" onHoldStart={() => holdRepeat(() => move(1))} onHoldEnd={clearHold} />
+          <Button label="旋转" onTap={rotate} />
+          <Button label="直落" onTap={hardDrop} secondary />
+          <Button label="慢下" onTap={softDrop} />
+          <Button label={paused ? "继续" : "暂停"} onTap={() => setPaused((v) => !v)} secondary />
+          <Button label={started ? "重新开始" : "开始游戏"} onTap={started ? resetGame : startGame} wide />
+        </div>
 
-          <div
-            className="mb-3 rounded-2xl p-3 text-center text-sm font-medium"
-            style={{ background: "#f7f1e8", border: `1px solid ${THEME.border}` }}
-          >
-            {gameOver ? "本局结束" : paused ? "游戏已暂停" : status}
-          </div>
-
-          <div className="mb-3 grid grid-cols-3 gap-2">
-            {Object.entries(MODE_CONFIG).map(([key, value]) => (
-              <button
-                key={key}
-                onClick={() => setMode(key)}
-                className="rounded-2xl px-2 py-3 text-sm font-semibold"
-                style={{
-                  background: mode === key ? "#e8f0e6" : THEME.panel,
-                  border: `1px solid ${mode === key ? "#c8d7c2" : THEME.border}`,
-                }}
-              >
-                {value.label}
-              </button>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <ActionButton
-              label="左移"
-              onHoldStart={() => holdRepeat(() => move(-1))}
-              onHoldEnd={clearHold}
-            />
-            <ActionButton
-              label="右移"
-              onHoldStart={() => holdRepeat(() => move(1))}
-              onHoldEnd={clearHold}
-            />
-            <ActionButton label="旋转" onTap={rotate} />
-            <ActionButton label="直落" onTap={hardDrop} secondary />
-            <ActionButton label="慢下" onTap={softDrop} />
-            <ActionButton
-              label={paused ? "继续" : "暂停"}
-              onTap={() => setPaused((v) => !v)}
-              secondary
-            />
-            <ActionButton
-              label={started ? "重新开始" : "开始游戏"}
-              onTap={started ? resetGame : startGame}
-              wide
-            />
-          </div>
-
-          <div
-            className="mt-3 rounded-2xl p-3 text-center text-sm leading-6"
-            style={{
-              background: THEME.panel,
-              border: `1px solid ${THEME.border}`,
-              color: THEME.subtext,
-            }}
-          >
-            点击移动，长按可连续左右移动。
-          </div>
+        <div style={{ marginTop: 12, background: THEME.panel, border: `1px solid ${THEME.border}`, borderRadius: 16, padding: 12, textAlign: "center", fontSize: 14, color: THEME.subtext }}>
+          点击移动，长按可连续左右移动。
         </div>
       </div>
     </div>
